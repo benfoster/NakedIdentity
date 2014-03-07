@@ -1,4 +1,4 @@
 Naked Identity
 ==============
 
-ASP.NET Identity stripped back.
+ASP.NET Identity stripped bare.
