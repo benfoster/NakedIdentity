@@ -1,6 +1,7 @@
-﻿using Microsoft.Owin.Security;
+﻿using Microsoft.AspNet.Identity;
+using Microsoft.Owin.Security;
 using NakedIdentity.Mvc.ViewModels;
-using System.Security.Claims;
+using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
 
@@ -9,6 +10,18 @@ namespace NakedIdentity.Mvc.Controllers
     [AllowAnonymous]
     public class AuthController : Controller
     {
+        private readonly UserManager<AppUser> userManager;
+
+        public AuthController()
+            : this (Startup.UserManagerFactory.Invoke())
+        {
+        }
+
+        public AuthController(UserManager<AppUser> userManager)
+        {
+            this.userManager = userManager;
+        }
+        
         [HttpGet]
         public ActionResult LogIn(string returnUrl)
         {
@@ -21,25 +34,18 @@ namespace NakedIdentity.Mvc.Controllers
         }
 
         [HttpPost]
-        public ActionResult LogIn(LogInModel model)
+        public async Task<ActionResult> LogIn(LogInModel model)
         {
             if (!ModelState.IsValid)
             {
                 return View();
             }
 
-            // Don't do this in production!
-            if (model.Email == "admin@admin.com" && model.Password == "password")
+            var user = await userManager.FindAsync(model.Email, model.Password);
+
+            if (user != null)
             {
-                var identity = new ClaimsIdentity(new[] {
-                        new Claim(ClaimTypes.Name, "Ben"),
-                        new Claim(ClaimTypes.Email, "a@b.com"),
-                        new Claim(ClaimTypes.Country, "England")
-                    },    
-                    Startup.AuthenticationType);
-
-                GetAuthenticationManager().SignIn(identity);
-
+                await SignIn(user);
                 return Redirect(GetRedirectUrl(model.ReturnUrl));
             }
 
@@ -50,8 +56,45 @@ namespace NakedIdentity.Mvc.Controllers
 
         public ActionResult LogOut()
         {
-            GetAuthenticationManager().SignOut(Startup.AuthenticationType);
+            GetAuthenticationManager().SignOut(DefaultAuthenticationTypes.ApplicationCookie);
             return RedirectToAction("index", "home");
+        }
+
+        [HttpGet]
+        public ActionResult Register()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> Register(RegisterModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View();
+            }
+
+            var user = new AppUser
+            {
+                UserName = model.Email,
+                Country = model.Country,
+                Age = model.Age
+            };
+
+            var result = await userManager.CreateAsync(user, model.Password);
+
+            if (result.Succeeded)
+            {
+                await SignIn(user);
+                return RedirectToAction("index", "home");
+            }
+
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError("", error);
+            }
+
+            return View();
         }
 
         private string GetRedirectUrl(string returnUrl)
@@ -62,6 +105,23 @@ namespace NakedIdentity.Mvc.Controllers
             }
 
             return returnUrl;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && userManager != null)
+            {
+                userManager.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        private async Task SignIn(AppUser user)
+        {
+            var identity = await userManager.CreateIdentityAsync(
+                user, DefaultAuthenticationTypes.ApplicationCookie);
+
+            GetAuthenticationManager().SignIn(identity);
         }
 
         private IAuthenticationManager GetAuthenticationManager()

@@ -1,28 +1,11 @@
-﻿using System.Security.Claims;
+﻿using Microsoft.AspNet.Identity.EntityFramework;
 
 namespace NakedIdentity.Mvc
 {
-    public class AppUser : ClaimsPrincipal
+    public class AppUser : IdentityUser
     {
-        public AppUser(ClaimsPrincipal principal)
-            : base(principal)
-        {
-        }
+        public string Country { get; set; }
 
-        public string Name
-        {
-            get
-            {
-                return this.FindFirst(ClaimTypes.Name).Value;
-            }
-        }
-
-        public string Country
-        {
-            get
-            {
-                return this.FindFirst(ClaimTypes.Country).Value;
-            }
-        }
+        public int Age { get; set; }
     }
 }
